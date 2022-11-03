@@ -37,32 +37,30 @@ func NewServer(ip string, port int) *Server {
 	return server
 }
 
-func (this *Server) listenMessage() {
+func (s *Server) listenMessage() {
 	for {
-		msg := <-this.serverChannel
-		this.mapLock.Lock()
-		for _, user := range this.onlineMap {
+		msg := <-s.serverChannel
+		s.mapLock.Lock()
+		for _, user := range s.onlineMap {
 			user.channel <- msg
 		}
-		this.mapLock.Unlock()
+		s.mapLock.Unlock()
 	}
 }
 
-func (this *Server) broadcastMessage(user *User, message string) {
+func (s *Server) broadcastMessage(user *User, message string) {
 	//格式化消息
 	sendMsd := fmt.Sprintf("[%s-%s]:%s", user.name, user.addr, message)
 	//发送消息  写入channel
 	fmt.Println(sendMsd)
-	this.serverChannel <- sendMsd
+	s.serverChannel <- sendMsd
 }
 
 // Handler 入参conn 连接 (this *server)隐式的指针
-func (this *Server) Handler(conn net.Conn) {
+func (s *Server) Handler(conn net.Conn) {
 	fmt.Println("当前建立连接成功")
 
-	//加锁操作
-	user := NewUser(conn, this)
-	//释放锁
+	user := NewUser(conn, s)
 	user.online()
 
 	isAlive := make(chan bool)
@@ -90,7 +88,10 @@ func (this *Server) Handler(conn net.Conn) {
 		case <-time.After(time.Second * 10):
 			user.sendMsg("强制下线")
 			close(user.channel)
-			conn.Close()
+			err := conn.Close()
+			if err != nil {
+				return
+			}
 			return
 
 		}
@@ -98,13 +99,14 @@ func (this *Server) Handler(conn net.Conn) {
 
 }
 
-func (this *Server) start() {
-	listen, err := net.Listen("tcp", fmt.Sprintf("%s:%d", this.ip, this.port))
+func (s *Server) start() {
+	//开启TCP监听ip:port
+	listen, err := net.Listen("tcp", fmt.Sprintf("%s:%d", s.ip, s.port))
 	if err != nil {
 		fmt.Println("net, listen err:", err)
 		return
 	}
-	//会在函数结束之前运行
+	//defer 会在函数结束之前运行
 	defer func(listen net.Listener) {
 		err := listen.Close()
 		if err != nil {
@@ -113,9 +115,9 @@ func (this *Server) start() {
 	}(listen)
 
 	//go 关键字新启动一个线程去执行
-	go this.listenMessage()
+	go s.listenMessage()
 
-	//执行accpet
+	//执行 accept 等待连接
 	for {
 		conn, err := listen.Accept()
 		if err != nil {
@@ -124,6 +126,7 @@ func (this *Server) start() {
 		}
 		fmt.Println("等待客户端连接。。。")
 
-		go this.Handler(conn)
+		//启动 线程执行handler
+		go s.Handler(conn)
 	}
 }

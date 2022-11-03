@@ -25,69 +25,75 @@ func NewUser(conn net.Conn, server *Server) *User {
 	return user
 }
 
-func (this *User) listenMessage() {
+func (u *User) listenMessage() {
 	for {
 		/**
 		<-chan读取chan 数据
 		chan<- 写数据
 		*/
-		var message = <-this.channel
-		this.conn.Write([]byte(message + "\n"))
+		var message = <-u.channel
+		_, err := u.conn.Write([]byte(message + "\n"))
+		if err != nil {
+			return
+		}
 	}
 }
 
-func (this *User) online() {
+func (u *User) online() {
 	//加锁操作
-	this.server.mapLock.Lock()
+	u.server.mapLock.Lock()
 	//map[key]=value 添加数据
-	this.server.onlineMap[this.name] = this
+	u.server.onlineMap[u.name] = u
 	//释放锁
-	this.server.mapLock.Unlock()
+	u.server.mapLock.Unlock()
 
 	//发送消息
-	this.server.broadcastMessage(this, "上线")
+	u.server.broadcastMessage(u, "上线")
 }
 
-func (this *User) offline() {
+func (u *User) offline() {
 	//加锁操作
-	server := this.server
+	server := u.server
 	server.mapLock.Lock()
 	//map[key]=value 添加数据
-	delete(server.onlineMap, this.name)
+	delete(server.onlineMap, u.name)
 	//释放锁
 	server.mapLock.Unlock()
-	server.broadcastMessage(this, "下线")
+	server.broadcastMessage(u, "下线")
 }
 
-func (this *User) sendMsg(message string) {
-	this.conn.Write([]byte(message))
+func (u *User) sendMsg(message string) {
+	_, err := u.conn.Write([]byte(message))
+	if err != nil {
+		return
+	}
 }
 
-func (this *User) doMessage(message string) {
+func (u *User) doMessage(message string) {
 
 	if message == "who" {
-		this.server.mapLock.Lock()
-		for _, user := range this.server.onlineMap {
+		u.server.mapLock.Lock()
+		for _, user := range u.server.onlineMap {
 			onLineMessage := "[" + user.addr + "]" + user.name + ":" + "在线....\r\n"
-			this.sendMsg(onLineMessage)
+			u.sendMsg(onLineMessage)
 		}
-		this.server.mapLock.Unlock()
+		u.server.mapLock.Unlock()
 	} else if len(message) > 7 && message[:7] == "rename|" {
 		newName := strings.Split(message, "|")[1]
 
-		_, ok := this.server.onlineMap[newName]
+		_, ok := u.server.onlineMap[newName]
 		if ok {
-			this.sendMsg("当前用户名已被使用\n")
+			u.sendMsg("当前用户名已被使用\n")
 		} else {
-			this.server.mapLock.Lock()
-			delete(this.server.onlineMap, this.name)
-			this.server.onlineMap[newName] = this
-			this.server.mapLock.Unlock()
-			this.name = newName
-			this.sendMsg("已更新用户名[" + this.name + "]")
+			u.server.mapLock.Lock()
+			delete(u.server.onlineMap, u.name)
+			u.server.onlineMap[newName] = u
+			u.server.mapLock.Unlock()
+			u.name = newName
+			u.sendMsg("已更新用户名[" + u.name + "]")
 		}
 	} else {
 
-		this.server.broadcastMessage(this, message)
+		u.server.broadcastMessage(u, message)
 	}
 }
