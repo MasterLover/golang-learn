@@ -26,7 +26,7 @@ func main() {
 	//1 Create the server object
 	s := znet.NewServer()
 
-	//2 Configure user-defined routes and services
+	//2 Configure user-defined routers and services
 	s.AddRouter(0, &PingRouter{})
 
 	//3 Start the service

@@ -1,14 +1,14 @@
 package main
 
 import (
-	"gin-learning/routes"
-	"github.com/gin-gonic/gin"
+	"gin-learning/app/system"
+	"gin-learning/routers"
 )
 
 func main() {
-	engine := gin.Default()
-	routes.InitRoutes(engine)
-	err := engine.Run(":8080")
+	routers.Include(system.Routers)
+	r := routers.Init()
+	err := r.Run(":8080")
 	if err != nil {
 		return
 	}
